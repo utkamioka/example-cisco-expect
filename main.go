@@ -105,6 +105,7 @@ func runCiscoExpect(cmd *cobra.Command, args []string) {
 // executeAndSaveCommand はコマンドを実行して結果をファイルに保存します
 func executeAndSaveCommand(e *expect.GExpect, command, filename string) error {
 	// コマンド送信
+	fmt.Printf("コマンド送信: %s\n", command)
 	if err := e.Send(command + "\r\n"); err != nil {
 		return fmt.Errorf("コマンド送信エラー: %w", err)
 	}
@@ -115,11 +116,21 @@ func executeAndSaveCommand(e *expect.GExpect, command, filename string) error {
 		return fmt.Errorf("コマンド実行結果待機エラー: %w", err)
 	}
 
+	// デバッグ出力: expect結果の詳細
+	fmt.Printf("expect結果の長さ: %d文字\n", len(result))
+	fmt.Printf("expect結果の内容: %q\n", result)
+	
+	// 結果が短すぎる場合の警告
+	if len(result) < 50 {
+		fmt.Printf("警告: expect結果が短すぎます（%d文字）。期待される出力が取得できていない可能性があります\n", len(result))
+	}
+
 	// ファイルに保存
 	if err := os.WriteFile(filename, []byte(result), 0644); err != nil {
 		return fmt.Errorf("ファイル保存エラー: %w", err)
 	}
 
+	fmt.Printf("ファイル保存完了: %s\n", filename)
 	return nil
 }
 
