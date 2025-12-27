@@ -153,8 +153,12 @@ func enterPrivilegedMode(e *expect.GExpect) error {
 		return fmt.Errorf("enable後の応答待機エラー: %w", err)
 	}
 
+	// デバッグ出力: enable送信後の最初の応答
+	fmt.Printf("enable送信後の応答: %q\n", result)
+
 	// パスワードが要求された場合
 	if strings.Contains(result, "Password:") {
+		fmt.Println("パスワードプロンプトが検出されました")
 		if enableSecret == "" {
 			return fmt.Errorf("enableパスワードが要求されましたが、--enable-secretが指定されていません")
 		}
@@ -170,12 +174,14 @@ func enterPrivilegedMode(e *expect.GExpect) error {
 		}
 
 		// デバッグ出力: expect結果を表示
-		fmt.Printf("enable後の応答: %q\n", result)
+		fmt.Printf("パスワード送信後の応答: %q\n", result)
 
 		// 認証失敗の場合はエラーを返す
 		if strings.Contains(result, "% Bad secrets") || strings.Contains(result, "Bad secrets") {
 			return fmt.Errorf("enable認証に失敗しました: パスワードが正しくありません")
 		}
+	} else {
+		fmt.Println("パスワードプロンプトは検出されませんでした（既に特権モードの可能性）")
 	}
 
 	fmt.Println("特権モード移行完了")
