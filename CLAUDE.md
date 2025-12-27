@@ -1,66 +1,62 @@
-# example-cisco-expect
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## プロジェクト概要
 
-Cisco Catalyst スイッチに SSH 接続し、基本的なコマンドを自動実行するプロトタイプツールです。
-Go言語とgoexpectライブラリを使用して、expectパターンによるネットワーク機器自動化の基礎を学習することが目的です。
+Cisco Catalystスイッチに SSH 接続してコマンドを自動実行するGoツールです。`goexpect`ライブラリを使用してexpectパターンによるネットワーク機器自動化を実装しています。
 
-## 使用技術
+## 開発コマンド
 
-- **言語**: Go
-- **ライブラリ**:
-  - `github.com/google/goexpect` - SSH + expectパターンの実装
-  - `github.com/spf13/cobra` - CLIインターフェース
-  - `golang.org/x/crypto/ssh` - SSH接続
-
-## 機能
-
-1. SSH接続によるCisco Catalystログイン
-2. `show version` コマンド実行と結果保存
-3. 特権モード移行（enable）
-4. `show logging` コマンド実行と結果保存
-5. 適切な接続終了処理
-
-## ビルド・実行
-
+### ビルドとテスト
 ```bash
 # ビルド
 go build
 
-# 実行例
-./example-cisco-expect -H 192.168.1.1 -u admin -p password
-./example-cisco-expect --host 192.168.1.1 --username admin --password secret --enable-secret enablepass
+# 依存関係確認
+go mod tidy
+
+# 構文チェック
+go vet
+
+# フォーマット
+go fmt
 ```
 
-## 開発状況
-
-- [x] Go module初期化
-- [x] 必要ライブラリの追加
-- [x] 基本CLI構造の実装
-- [x] SSH接続とgoexpectセットアップ
-- [x] show versionコマンド実行
-- [x] enable特権モード移行処理
-- [x] show loggingコマンド実行
-- [x] CLIオプション短縮形追加
-
-## テスト方法
-
-実機のCisco Catalystが必要なため、現在はコンパイル確認のみ実施。
-実際のテストは以下の環境で実施予定：
-
+### 実行とテスト
 ```bash
-./example-cisco-expect -H <catalyst_ip> -u <username> -p <password>
+# コンパイル確認のみ（実機接続なし）
+go build
+
+# 実際の実行（Ciscoデバイス必要）
+./example-cisco-expect -H 192.168.1.1 -u admin -p password
+./example-cisco-expect --host IP --username USER --password PASS --enable-secret SECRET
 ```
 
-## 今後の拡張可能性
+## アーキテクチャ概要
 
-- 他ベンダー機器への対応（Juniper, Arista等）
-- 設定変更コマンドの実行
-- 複数機器への同時接続
-- 実行結果の構造化（JSON出力等）
+### 単一ファイル構成
+- **main.go**: 全ての機能を含む単一ファイル実装
+  - CLI引数処理（Cobra）
+  - SSH接続とgoexpect初期化  
+  - Cisco expectパターン処理
+  - ファイル出力機能
 
-## 注意事項
+### 主要コンポーネント
+1. **runCiscoExpect()**: メイン処理フロー（SSH接続→コマンド実行）
+2. **executeAndSaveCommand()**: コマンド実行とファイル保存の汎用関数
+3. **enterPrivilegedMode()**: enable特権モード移行処理
 
-- プロトタイプ目的のため、本番環境での使用は推奨しません
-- パスワードはコマンドライン引数で指定するため、プロセス一覧で見える可能性があります
-- SSH接続時のホスト鍵検証を無効化しています（`InsecureIgnoreHostKey`）
+### 依存ライブラリ
+- `github.com/google/goexpect`: SSH expectパターン実装
+- `github.com/spf13/cobra`: CLI引数処理
+- `golang.org/x/crypto/ssh`: SSH接続
+
+### セキュリティ考慮事項
+- **`ssh.InsecureIgnoreHostKey()`**: ホスト鍵検証を無効化（プロトタイプ用）
+- パスワードはコマンドライン引数で渡すため、プロセス一覧で見える可能性
+
+### Expectパターンの実装
+- プロンプト待機: `regexp.MustCompile(\`[>#]$\`)`
+- タイムアウト: 基本30秒、プロンプト確認は5-10秒
+- 特権モード判定: `#`プロンプトの検出

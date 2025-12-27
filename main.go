@@ -135,8 +135,8 @@ func enterPrivilegedMode(e *expect.GExpect) error {
 		return fmt.Errorf("プロンプト待機エラー: %w", err)
 	}
 
-	// 既に特権モード（#）の場合はそのまま返す
-	if strings.Contains(result, "#") {
+	// 既に特権モード（最後の文字が#）の場合はそのまま返す
+	if strings.HasSuffix(strings.TrimSpace(result), "#") {
 		fmt.Println("既に特権モードです")
 		return nil
 	}
@@ -163,10 +163,18 @@ func enterPrivilegedMode(e *expect.GExpect) error {
 			return fmt.Errorf("enableパスワード送信エラー: %w", err)
 		}
 
-		// 特権プロンプト待機
-		_, _, err = e.Expect(regexp.MustCompile(`#$`), 10*time.Second)
+		// 特権プロンプト待機（認証失敗パターンも検出）
+		result, _, err := e.Expect(regexp.MustCompile(`(% Bad secrets|#$)`), 10*time.Second)
 		if err != nil {
 			return fmt.Errorf("特権プロンプト待機エラー: %w", err)
+		}
+
+		// デバッグ出力: expect結果を表示
+		fmt.Printf("enable後の応答: %q\n", result)
+
+		// 認証失敗の場合はエラーを返す
+		if strings.Contains(result, "% Bad secrets") || strings.Contains(result, "Bad secrets") {
+			return fmt.Errorf("enable認証に失敗しました: パスワードが正しくありません")
 		}
 	}
 
