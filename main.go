@@ -147,41 +147,58 @@ func enterPrivilegedMode(e *expect.GExpect) error {
 		return fmt.Errorf("enableコマンド送信エラー: %w", err)
 	}
 
-	// パスワードプロンプトまたは特権プロンプトを待機
-	result, _, err = e.Expect(regexp.MustCompile(`(Password:|[>#]$)`), 10*time.Second)
+	// Phase 1: パスワードプロンプトを待機
+	result, _, err = e.Expect(regexp.MustCompile(`Password:`), 5*time.Second)
 	if err != nil {
-		return fmt.Errorf("enable後の応答待機エラー: %w", err)
+		// タイムアウト → 既に特権モードの可能性を確認
+		fmt.Println("パスワードプロンプトのタイムアウト → プロンプト確認中...")
+		
+		// 現在のプロンプトを取得
+		if err := e.Send("\r\n"); err != nil {
+			return fmt.Errorf("プロンプト確認コマンド送信エラー: %w", err)
+		}
+		
+		promptResult, _, err := e.Expect(regexp.MustCompile(`[>#]$`), 3*time.Second)
+		if err != nil {
+			return fmt.Errorf("プロンプト確認エラー: %w", err)
+		}
+		
+		fmt.Printf("現在のプロンプト: %q\n", promptResult)
+		
+		// 最後の文字で特権モード判定
+		if strings.HasSuffix(strings.TrimSpace(promptResult), "#") {
+			fmt.Println("既に特権モードです")
+			return nil
+		} else {
+			return fmt.Errorf("ユーザーモードのままです。enable処理が正常に完了していません")
+		}
 	}
 
-	// デバッグ出力: enable送信後の最初の応答
-	fmt.Printf("enable送信後の応答: %q\n", result)
+	// デバッグ出力: パスワードプロンプトの応答
+	fmt.Printf("パスワードプロンプト検出: %q\n", result)
 
-	// パスワードが要求された場合
-	if strings.Contains(result, "Password:") {
-		fmt.Println("パスワードプロンプトが検出されました")
-		if enableSecret == "" {
-			return fmt.Errorf("enableパスワードが要求されましたが、--enable-secretが指定されていません")
-		}
+	// パスワード送信処理
+	fmt.Println("パスワードプロンプトが検出されました")
+	if enableSecret == "" {
+		return fmt.Errorf("enableパスワードが要求されましたが、--enable-secretが指定されていません")
+	}
 
-		if err := e.Send(enableSecret + "\r\n"); err != nil {
-			return fmt.Errorf("enableパスワード送信エラー: %w", err)
-		}
+	if err := e.Send(enableSecret + "\r\n"); err != nil {
+		return fmt.Errorf("enableパスワード送信エラー: %w", err)
+	}
 
-		// 特権プロンプト待機（認証失敗パターンも検出）
-		result, _, err := e.Expect(regexp.MustCompile(`(% Bad secrets|#$)`), 10*time.Second)
-		if err != nil {
-			return fmt.Errorf("特権プロンプト待機エラー: %w", err)
-		}
+	// 特権プロンプト待機（認証失敗パターンも検出）
+	result, _, err = e.Expect(regexp.MustCompile(`(% Bad secrets|#$)`), 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("特権プロンプト待機エラー: %w", err)
+	}
 
-		// デバッグ出力: expect結果を表示
-		fmt.Printf("パスワード送信後の応答: %q\n", result)
+	// デバッグ出力: パスワード送信後の応答
+	fmt.Printf("パスワード送信後の応答: %q\n", result)
 
-		// 認証失敗の場合はエラーを返す
-		if strings.Contains(result, "% Bad secrets") || strings.Contains(result, "Bad secrets") {
-			return fmt.Errorf("enable認証に失敗しました: パスワードが正しくありません")
-		}
-	} else {
-		fmt.Println("パスワードプロンプトは検出されませんでした（既に特権モードの可能性）")
+	// 認証失敗の場合はエラーを返す
+	if strings.Contains(result, "% Bad secrets") || strings.Contains(result, "Bad secrets") {
+		return fmt.Errorf("enable認証に失敗しました: パスワードが正しくありません")
 	}
 
 	fmt.Println("特権モード移行完了")
